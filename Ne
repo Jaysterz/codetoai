@@ -1,0 +1,73 @@
+//@version=5
+strategy("Stochastic Oscillator & Bollinger Bands Strategy with Alerts and Plots", overlay=true)
+
+// Function to calculate Stochastic Oscillator
+stochastic(src, high, low, periodK, smoothK, periodD) =>
+    k = sma(((src - low) / (high - low)) * 100, periodK)
+    d = sma(k, smoothK)
+    j = sma(d, periodD)
+    [k, d, j]
+
+// Function to calculate Bollinger Bands
+bollinger(src, length, dev) =>
+    basis = sma(src, length)
+    stdDev = dev * stdev(src, length)
+    upper = basis + stdDev
+    lower = basis - stdDev
+    [upper, basis, lower]
+
+// Function to generate alerts
+generateAlert(msg, alert_freq) =>
+    if barstate.islast
+        if alert_freq == "Once per bar"
+            alert(msg)
+        else if alert_freq == "Once per order"
+            if strategy.position_size > strategy.position_size[1]
+                alert(msg)
+
+// Input parameters
+periodK = input(title="Period K", type=input.integer, defval=14)
+smoothK = input(title="Smooth K", type=input.integer, defval=3)
+periodD = input(title="Period D", type=input.integer, defval=3)
+length = input(title="Length", type=input.integer, defval=20)
+dev = input(title="Deviation", type=input.float, defval=2.0)
+src = input(title="Source", type=input.source, defval=close)
+alert_freq = input(title="Alert Frequency", options=["Once per bar", "Once per order"], defval="Once per bar")
+
+// Calculate Stochastic Oscillator and Bollinger Bands
+[stk, %K, %D] = stochastic(src, high, low, periodK, smoothK, periodD)
+[upper, basis, lower] = bollinger(src, length, dev)
+
+// Signals
+longSignal = crossover(stk, 20) and close > upper
+shortSignal = crossunder(stk, 80) and close < lower
+
+// Plot long and short signals
+plotshape(longSignal, title="Long Signal", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(shortSignal, title="Short Signal", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// Trading logic
+if (longSignal)
+    strategy.entry("Buy", strategy.long)
+    generateAlert("Buy signal triggered", alert_freq)
+if (shortSignal)
+    strategy.entry("Sell", strategy.short)
+    generateAlert("Sell signal triggered", alert_freq)
+
+// Exit logic
+exitLong = crossunder(stk, 50)
+exitShort = crossover(stk, 50)
+if (exitLong)
+    strategy.close("Buy")
+    generateAlert("Buy signal exited", alert_freq)
+if (exitShort)
+    strategy.close("Sell")
+    generateAlert("Sell signal exited", alert_freq)
+
+// Plotting
+plot(stk, title="Stochastic")
+plot(%K, title="%K")
+plot(%D, title="%D")
+plot(upper, title="Upper Bollinger Band", color=color.green, linestyle=hline.style_dashed)
+plot(basis, title="Basis Bollinger Band", color=color.black, linestyle=hline.style_dashed)
+plot(lower, title="Lower Bollinger Band", color=color.red
